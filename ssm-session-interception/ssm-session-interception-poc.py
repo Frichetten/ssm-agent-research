@@ -84,6 +84,10 @@ data_channel.send(bytes(msg))
 print(data_channel.recv())
 #
 
+
+# Lost progress by stupidly not saving first
+# the fix is the send_binary
+
 #
 #    ## Receive first ssm response with binary
 #    first_response = aws_msg.deserialize(ws.recv())
