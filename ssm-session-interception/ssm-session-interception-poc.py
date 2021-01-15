@@ -37,71 +37,118 @@ def parse_data_channel(data):
     access_token= lines[2][lines[2].find(">")+1:lines[2].find("</")]
     return access_token
 
+def create_date():
+    return int(round(time.time() * 1000))
+
+def fetch_access_token_url(meta, role_creds):
+    # Get the control_channel access_token and websocket uri
+    resp = aws_requests.post_control_channel(meta['instanceId'], role_creds['AccessKeyId'], role_creds['SecretAccessKey'], role_creds['Token'])
+    access_token, url = parse_control_channel(resp)
+
+    return access_token, url
+
+def build_control_channel(meta, role_creds, access_token, url):
+    path = url[url.find("/v1"):]
+    control_channel_info = aws_requests.initiate_websocket_connection(url, path, access_token, role_creds['AccessKeyId'], role_creds['SecretAccessKey'], role_creds['Token'])
+
+    return control_channel_info
+
+def craft_cc_message(access_token):
+    return '{"Cookie":null,"MessageSchemaVersion":"1.0","RequestId":"'+str(uuid.uuid4())+'","TokenValue":"'+access_token+'","AgentVersion":"3.0.161.0","PlatformType":"linux"}'
+
+def craft_dc_message(access_token):
+    return '{"MessageSchemaVersion":"1.0","RequestId":"'+str(uuid.uuid4())+'","TokenValue":"'+access_token+'","ClientInstanceId":"i-03a6d204ea995a6fa","ClientId":""}'
+
+def build_data_channel(session_id, access_token, role_creds):
+    path = "/v1/data-channel/"+session_id+"?role=publish_subscribe"
+    data_channel_info = aws_requests.initiate_websocket_connection("wss://ssmmessages.us-east-1.amazonaws.com/v1/data-channel/"+session_id+"?role=publish_subscribe", path, access_token, role_creds['AccessKeyId'], role_creds['SecretAccessKey'], role_creds['Token'])
+
+    return data_channel_info
+
+def craft_agent_session_state(session_id):
+    msg = aws_msg.serialize(
+            '{"SchemaVersion":1,"SessionState":"Connected","SessionId":"' + session_id + '"}',  # Message
+            "agent_session_state",                                                              # Message Type
+            1,                                                                                  # Schema Version
+            create_date(),                                                                      # Created Date
+            0,                                                                                  # Sequence Number
+            3,                                                                                  # Flags
+            uuid.uuid4(),                                                                       # Message ID
+            0)                                                                                  # Payload Type
+    return msg
+
+def craft_acknowledge(session_id):
+    msg = aws_msg.serialize(
+            '{"AcknowledgedMessageType":"input_stream_data","AcknowledgedMessageId":"' + session_id + '","AcknowledgedMessageSequenceNumber":0,"IsSequentialMessage":true}', 
+            "acknowledge",                                                                      # Message Type
+            1,                                                                                  # Schema Version
+            create_date(),                                                                      # Created Date
+            0,                                                                                  # Sequence Number 
+            3,                                                                                  # Flags
+            uuid.uuid4(),                                                                       # Message ID
+            0)                                                                                  # Payload Type
+    return msg
+
+def craft_output_stream_data(message):
+    msg = aws_msg.serialize(
+            message,                                                                            # Message
+            "output_stream_data",                                                               # Message Type
+            1,                                                                                  # Schema Version
+            create_date(),                                                                      # Created Date
+            0,                                                                                  # Sequence Number
+            1,                                                                                  # Flags
+            uuid.uuid4(),                                                                       # Message ID
+            1)                                                                                  # Payload Type
+    return msg
+
+
 # Get role name and credentials
 role_name = retrieve_role_name()
 role_creds = retrieve_role_creds(role_name)
 meta = retrieve_meta()
 
-aws_requests.post_base(meta['privateIp'], meta['instanceId'], role_creds['AccessKeyId'], role_creds['SecretAccessKey'], role_creds['Token'])
+# Gather info to create the control channel
+access_token, url = fetch_access_token_url(meta, role_creds)
+cc_info = build_control_channel(meta, role_creds, access_token, url)
 
-# Create control channel connection
-resp = aws_requests.post_control_channel(meta['instanceId'], role_creds['AccessKeyId'], role_creds['SecretAccessKey'], role_creds['Token'])
-
-access_token, url = parse_control_channel(resp)
-
-# Connect to Websocket
-path = url[url.find("/v1"):]
-control_channel_info = aws_requests.initiate_websocket_connection(url, path, access_token, role_creds['AccessKeyId'], role_creds['SecretAccessKey'], role_creds['Token'])
-
+# Instantiate the control channel
 control_channel = websocket.WebSocket()
-control_channel.connect(control_channel_info[0], header=control_channel_info[1])
+control_channel.connect(cc_info[0], header=cc_info[1])
 
-control_channel.send('{"Cookie":null,"MessageSchemaVersion":"1.0","RequestId":"'+str(uuid.uuid4())+'","TokenValue":"'+access_token+'","AgentVersion":"3.0.161.0","PlatformType":"linux"}')
+# Get control channel session_id
+control_channel.send(craft_cc_message(access_token))
 first_response = aws_msg.deserialize(control_channel.recv())
 first_response_payload = json.loads(first_response.payload)
 first_response_content = json.loads(first_response_payload['content'])
 session_id = first_response_content['SessionId']
 
-# Create data channel connection
+# Gather info to create the data channel
 resp = aws_requests.post_data_channel(session_id, role_creds['AccessKeyId'], role_creds['SecretAccessKey'], role_creds['Token'])
-print(resp)
 access_token = parse_data_channel(resp)
 
-# Connect to Websocket
-path = "/v1/data-channel/"+session_id+"?role=publish_subscribe"
-data_channel_info = aws_requests.initiate_websocket_connection("wss://ssmmessages.us-east-1.amazonaws.com/v1/data-channel/"+session_id+"?role=publish_subscribe", path, access_token, role_creds['AccessKeyId'], role_creds['SecretAccessKey'], role_creds['Token'])
+dc_info = build_data_channel(session_id, access_token, role_creds)
 
+# Instantiate the data channel
 data_channel = websocket.WebSocket()
-print("Data Channel URL: " + data_channel_info[0])
-data_channel.connect(data_channel_info[0], header=data_channel_info[1])
+data_channel.connect(dc_info[0], header=dc_info[1])
 
-data_channel.send('{"MessageSchemaVersion":"1.0","RequestId":"'+str(uuid.uuid4())+'","TokenValue":"'+access_token+'","ClientInstanceId":"i-03a6d204ea995a6fa","ClientId":""}')
+data_channel.send(craft_dc_message(access_token))
 
-created_date = int(round(time.time() * 1000))
-msg = aws_msg.serialize('{"SchemaVersion":1,"SessionState":"Connected","SessionId":"'+first_response_content['SessionId']+'"}', "agent_session_state", 1, created_date, 0, 3, uuid.uuid4(), 0)
-data_channel.send(bytes(msg))
+# From here on out we need to react to responses and send what we want
+# We react by looking at what the message type is
+data_channel.send_binary(craft_agent_session_state(first_response_content['SessionId']))
 
-print(data_channel.recv())
-#
+msg = aws_msg.deserialize(data_channel.recv())
 
+# acknowledge
+msg = craft_acknowledge(msg.messageId)
+data_channel.send_binary(msg)
 
-# Lost progress by stupidly not saving first
-# the fix is the send_binary
+# output stream
+msg = craft_output_stream_data("$")
+data_channel.send_binary(msg)
 
-#
-#    ## Receive first ssm response with binary
-#    first_response = aws_msg.deserialize(ws.recv())
-#    first_response_payload = json.loads(first_response.payload)
-#    first_response_content = json.loads(first_response_payload['content'])
-#
-#    ws.send('{"MessageSchemaVersion":"1.0","RequestId":"7295c5a0-5827-40af-88bf-d3160c0635f1","TokenValue":"'+access_token+'","ClientInstanceId":"i-03a6d204ea995a6fa","ClientId":""}')
-#
-#    ## Send first ssm message with binary
-#    ## We are acknowledging session state
-#    created_date = int(round(time.time() * 1000))
-#    msg = aws_msg.serialize('{"SchemaVersion":1,"SessionState":"Connected","SessionId":"'+first_response_content['SessionId']+'"}', "agent_session_state", 1, created_date, 0, 3, uuid.uuid4(), 0)
-#    ws.send(bytes(msg))
-#
-#    res = ws.recv()
+msg = aws_msg.deserialize(data_channel.recv())
+
 
 

@@ -42,7 +42,7 @@ class AgentMessage:
 
     def __init__(self, message):
         self.messageType = getString(message, AgentMessage_MessageTypeOffset, AgentMessage_MessageTypeLength)
-        print(f"Message Type: {self.messageType}")
+        print(f"\nMessage Type: {self.messageType}")
 
         self.schemaVersion = getUInteger(message, AgentMessage_SchemaVersionOffset)
         print(f"Schema Version: {self.schemaVersion}")
@@ -56,7 +56,7 @@ class AgentMessage:
         self.flags = getULong(message, AgentMessage_FlagsOffset)
         print(f"Flags: {self.flags}")
 
-        self.messageId = getUuid(message, AgentMessage_MessageIdOffset)
+        self.messageId = str(getUuid(message, AgentMessage_MessageIdOffset))
         print(f"Message ID: {self.messageId}")
 
         self.payloadDigest = getBytes(message, AgentMessage_PayloadDigestOffset, AgentMessage_PayloadDigestLength)
@@ -143,7 +143,7 @@ def serialize(message, message_type, schema_version, created_date, sequence_numb
     
     result = putBytes(result, startPosition, endPosition, message.encode())
 
-    return result
+    return bytes(result)
 
 def getUInteger(input_bytes, offset):
     return getInteger(input_bytes, offset)
@@ -162,12 +162,13 @@ def getInteger(input_bytes, offset):
 
 def putInteger(byteArray, offset, value):
     byteArrayLength = len(byteArray)
-    if offset > byteArrayLength-1 or offset+4 > byteArrayLength-1 or offset < 0:
-        print("ERROR: putInteger")
+    #if offset > byteArrayLength-1 or offset+4 > byteArrayLength-1 or offset < 0:
+    #    print("ERROR: putInteger")
     
     bytess = integerToBytes(value)
-    for count, index in enumerate(range(offset,offset+4)):
-        byteArray[index] = bytess[count]
+    byteArray = byteArray[:offset] + bytess + byteArray[offset+4+1:]
+    #for count, index in enumerate(range(offset,offset+4)):
+    #    byteArray[index] = bytess[count]
 
     return byteArray
 

@@ -32,13 +32,10 @@ def initiate_websocket_connection(url, path, access_token, A_access_key, A_secre
     datestamp = t.strftime('%Y%m%d') # Date w/o time, used in credential scope
 
     canonical_uri = path[:path.find("?")]
-    print(canonical_uri)
 
     canonical_querystring = path[path.find("?")+1:].replace("amp;","")
-    print(canonical_querystring)
 
     url = url.replace("amp;","")
-    print("url: " , url)
 
     path = path.replace("amp;","")
 
@@ -64,8 +61,6 @@ def initiate_websocket_connection(url, path, access_token, A_access_key, A_secre
 
     request_url = endpoint + canonical_uri + '?' + canonical_querystring
 
-    print('\nBEGIN REQUEST++++++++++++++++++++++++++++++++++++')
-    print('Request URL = ' + request_url)
     ws = websocket.WebSocket()
 
     return (url, headers)
@@ -123,7 +118,7 @@ def post_data_channel(sessionid, A_access_key, A_secret_access_key, A_session_to
 
     r = requests.post(endpoint+"v1/data-channel/"+sessionid, data=request_parameters, headers=headers)
 
-    print("Create Data Channel -> Response (%s): %s" % (r.status_code, r.text))
+    print("Create Data Channel -> Response (%s)" % (r.status_code))
     return r.text
 
 
@@ -180,7 +175,7 @@ def post_control_channel(instanceid, A_access_key, A_secret_access_key, A_sessio
 
     r = requests.post(endpoint+"v1/control-channel/"+instanceid, data=request_parameters, headers=headers)
 
-    print("Create Control Channel -> Response (%s): %s" % (r.status_code, r.text))
+    print("Create Control Channel -> Response (%s)" % (r.status_code))
     return r.text
 
 
@@ -244,4 +239,4 @@ def post_base(ipaddress, instanceid, A_access_key, A_secret_access_key, A_sessio
 
     r = requests.post(endpoint, data=request_parameters, headers=headers)
 
-    print("Post Base -> Response (%s): %s" % (r.status_code, r.text))
+    print("Post Base -> Response (%s)" % (r.status_code))
