@@ -177,4 +177,62 @@ def get_messages(instance_id, message_id, access_key, secret_access_key, session
         return ""
 
 
+def update_instance_information(hostname, ip_address, instance_id, access_key, secret_access_key, session_token):
+    method = 'POST'
+    service = 'ssm'
+    host = 'ssm.us-east-1.amazonaws.com'
+    region = 'us-east-1'
+    endpoint = 'https://ssm.us-east-1.amazonaws.com/'
+    content_type = 'application/x-amz-json-1.1'
+    amz_target = 'AmazonSSM.UpdateInstanceInformation'
+
+    request_parameters = {}
+    request_parameters["AgentName"] = "amazon-ssm-agent"
+    request_parameters["AgentStatus"] = "Active"
+    request_parameters["AgentVersion"] = "2.3.978.0"
+    request_parameters["ComputerName"] = hostname
+    request_parameters["IPAddress"] = ip_address
+    request_parameters["InstanceId"] = instance_id
+    request_parameters["PlatformName"] = "Ubuntu"
+    request_parameters["PlatformType"] = "Linux"
+    request_parameters["PlatformVersion"] = "20.04"
+
+    request_parameters = json.dumps(request_parameters)
+
+    t = datetime.datetime.utcnow()
+    amz_date = t.strftime('%Y%m%dT%H%M%SZ')
+    date_stamp = t.strftime('%Y%m%d') # Date w/o time, used in credential scope
+
+    canonical_uri = '/'
+
+    canonical_querystring = ''
+
+    canonical_headers = 'content-type:' + content_type + '\n' + 'host:' + host + '\n' + 'x-amz-date:' + amz_date + '\n' + 'x-amz-target:' + amz_target + '\n'
+
+    signed_headers = 'content-type;host;x-amz-date;x-amz-target'
+
+    payload_hash = hashlib.sha256(request_parameters.encode('utf-8')).hexdigest()
+
+    canonical_request = method + '\n' + canonical_uri + '\n' + canonical_querystring + '\n' + canonical_headers + '\n' + signed_headers + '\n' + payload_hash
+
+    algorithm = 'AWS4-HMAC-SHA256'
+    credential_scope = date_stamp + '/' + region + '/' + service + '/' + 'aws4_request'
+    string_to_sign = algorithm + '\n' +  amz_date + '\n' +  credential_scope + '\n' +  hashlib.sha256(canonical_request.encode('utf-8')).hexdigest()
+
+    signing_key = getSignatureKey(secret_access_key, date_stamp, region, service)
+
+    signature = hmac.new(signing_key, (string_to_sign).encode('utf-8'), hashlib.sha256).hexdigest()
+
+    authorization_header = algorithm + ' ' + 'Credential=' + access_key + '/' + credential_scope + ', ' +  'SignedHeaders=' + signed_headers + ', ' + 'Signature=' + signature
+
+    headers = {'Content-Type':content_type,
+               'X-Amz-Date':amz_date,
+               'X-Amz-Target':amz_target,
+               'X-Amz-Security-Token':session_token,
+               'Authorization':authorization_header}
+
+    r = requests.post(endpoint, data=request_parameters, headers=headers)
+
+    print("Update Instance Information -> Response (%s): %s" % (r.status_code, r.text))
+
 
