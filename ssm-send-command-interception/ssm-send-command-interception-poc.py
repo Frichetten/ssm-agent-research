@@ -51,16 +51,20 @@ aws_requests.update_instance_information(
 # Bother ec2messages to get commands for send-command
 while True:
     message_id = ""
-    command_id = ""
-    while command_id == "":
+    command_payload = ""
+    while command_payload == "":
         message_id = str(uuid.uuid4())
-        command_id = aws_requests.get_messages(
+        command_payload = aws_requests.get_messages(
                 meta['instanceId'], 
                 message_id, 
                 role_creds['AccessKeyId'], 
                 role_creds['SecretAccessKey'], 
                 role_creds['Token']
                 )
+
+    # print the command
+    print("Command:", command_payload['Parameters']['commands'])
+    command_id = command_payload['CommandId']
 
     # Get acknowledge message
     aws_requests.acknowledge_message(meta['instanceId'], command_id, role_creds['AccessKeyId'], role_creds['SecretAccessKey'], role_creds['Token'])

@@ -165,14 +165,15 @@ def get_messages(instance_id, message_id, access_key, secret_access_key, session
                'X-Amz-Security-Token':session_token,
                'Authorization':authorization_header}
 
-    r = requests.post(endpoint, data=request_parameters, headers=headers)
+    try:
+        r = requests.post(endpoint, data=request_parameters, headers=headers, timeout=3)
+    except requests.exceptions.Timeout:
+        return ""
     response = json.loads(r.text)
 
-    print("Get Messages -> Response (%s): %s" % (r.status_code, r.text))
-
     if len(response["Messages"]) > 0:
-        further = json.loads(response["Messages"][0]["Payload"])
-        return further["CommandId"]
+        resp_payload = json.loads(response["Messages"][0]["Payload"])
+        return resp_payload
     else:
         return ""
 
