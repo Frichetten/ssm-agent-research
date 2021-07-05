@@ -2,6 +2,7 @@
 
 import requests, json, uuid
 import aws_requests
+from datetime import datetime
 
 
 def retrieve_meta() -> json:
@@ -48,6 +49,22 @@ aws_requests.update_instance_information(
         role_creds['Token']
         )
 
+
+def write_log(logwriter, command_payload):
+    logwriter.write(str(datetime.now()) + "\n")
+    logwriter.write(f"OutputS3KeyPrefix: {command_payload['OutputS3KeyPrefix']}\n")
+    logwriter.write(f"CloudWatchOutputEnabled: {command_payload['CloudWatchOutputEnabled']}\n")
+    logwriter.write(f"Parameters: {command_payload['Parameters']}\n")
+    logwriter.write(f"DocumentContent: {command_payload['DocumentContent']}\n")
+    logwriter.write(f"CloudWatchLogGroupName: {command_payload['CloudWatchLogGroupName']}\n")
+    logwriter.write(f"OutputS3Region: {command_payload['OutputS3Region']}\n")
+    logwriter.write(f"CommandId: {command_payload['CommandId']}\n")
+    logwriter.write(f"OutputS3BucketName: {command_payload['OutputS3BucketName']}\n")
+    logwriter.write(f"DocumentName: {command_payload['DocumentName']}\n\n\n")
+
+
+logwriter = open('ssm-log.txt', 'a')
+
 # Bother ec2messages to get commands for send-command
 while True:
     message_id = ""
@@ -62,8 +79,9 @@ while True:
                 role_creds['Token']
                 )
 
-    # print the command
-    print("Command:", command_payload['Parameters']['commands'])
+    write_log(logwriter, command_payload)
+    logwriter.write(command_payload + "\n\n")
+    print("Command:", command_payload['Parameters'])
     command_id = command_payload['CommandId']
 
     # Get acknowledge message
